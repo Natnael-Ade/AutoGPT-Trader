@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analyzer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        input {
+            padding: 8px;
+            flex-grow: 1;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stock Analyzer Test</h1>
+    <div class="container">
+        <div class="input-group">
+            <input type="text" id="query" placeholder="Enter a stock query (e.g., Should I buy AAPL?)">
+            <button id="analyze">Analyze</button>
+        </div>
+        <div class="loading" id="loading">Loading...</div>
+        <pre id="result"></pre>
+    </div>
+
+    <script>
+        document.getElementById('analyze').addEventListener('click', async () => {
+            const query = document.getElementById('query').value;
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('http://localhost:5000/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query }),
+                });
+
+                const data = await response.json();
+                result.textContent = JSON.stringify(data, null, 2);
+                result.style.display = 'block';
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message;
+                result.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

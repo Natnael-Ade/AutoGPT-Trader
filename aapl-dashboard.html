@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAPL Stock Analysis | Professional Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0/dist/chartjs-adapter-luxon.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #0369a1 0%, #0c4a6e 100%);
+        }
+
+        .price-change.positive {
+            color: #10b981;
+        }
+
+        .price-change.negative {
+            color: #ef4444;
+        }
+
+        .chart-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .time-range-button.active {
+            background-color: #0c4a6e;
+            color: white;
+        }
+
+        /* Chat widget animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(10px) scale(0.95); }
+        }
+
+        #chatWindow.open {
+            display: block;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        #chatWindow.closing {
+            animation: fadeOut 0.3s ease forwards;
+        }
+
+        #chatButton {
+            transition: transform 0.3s ease;
+        }
+
+        #chatButton:hover {
+            transform: scale(1.05);
+        }
+
+        #chatButton:active {
+            transform: scale(0.95);
+        }
+
+        .chat-message {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Chat Widget -->
+    <div id="chatWidget" class="fixed bottom-6 right-6 z-50">
+        <!-- Chat Button -->
+        <button id="chatButton" class="w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center hover:bg-blue-700 transition-all duration-300 focus:outline-none">
+            <i class="fas fa-comment-alt text-xl"></i>
+        </button>
+
+        <!-- Chat Window -->
+        <div id="chatWindow" class="hidden absolute bottom-16 right-0 w-80 md:w-96 bg-white rounded-lg shadow-xl overflow-hidden transition-all duration-300 transform scale-95 opacity-0">
+            <div class="gradient-bg text-white p-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-robot mr-2"></i>
+                    <h3 class="font-semibold">Stock Advisor</h3>
+                </div>
+                <button id="closeChat" class="text-white hover:text-gray-200 focus:outline-none">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div id="chatMessages" class="p-4 h-80 overflow-y-auto bg-gray-50">
+                <div class="chat-message bot">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 mr-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                <i class="fas fa-robot text-sm"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm max-w-xs">
+                            <p class="text-sm">Hi there! I'm your stock advisor. Ask me anything about stocks like "Should I buy TSLA?" or "What's your analysis on AMZN?"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 p-3 bg-white">
+                <form id="chatForm" class="flex items-center">
+                    <input
+                        type="text"
+                        id="chatInput"
+                        class="flex-1 border border-gray-300 rounded-l-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Ask about any stock..."
+                    >
+                    <button
+                        type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700 focus:outline-none"
+                    >
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-chart-line text-2xl"></i>
+                        <h1 class="text-2xl font-bold">Stock Analysis Dashboard</h1>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-4">
+                        <span class="text-white opacity-75">Last Updated: <span id="lastUpdated">May 6, 2025</span></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8">
+            <!-- Stock Overview Card -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+                <div class="p-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <img src="https://logo.clearbit.com/apple.com" alt="Apple Inc. Logo" class="w-10 h-10 mr-3">
+                                <div>
+                                    <h2 class="text-2xl font-bold text-gray-800">Apple Inc.</h2>
+                                    <div class="flex items-center">
+                                        <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">AAPL</span>
+                                        <span class="ml-2 text-sm text-gray-500">NASDAQ</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 md:mt-0 flex flex-col md:flex-row md:items-center">
+                            <div class="mr-6">
+                                <div class="text-3xl font-bold text-gray-900">$173.45</div>
+                                <div class="flex items-center">
+                                    <span class="price-change positive">
+                                        <i class="fas fa-caret-up mr-1"></i>2.37 (1.38%)
+                                    </span>
+                                    <span class="text-xs text-gray-500 ml-2">Today</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 md:mt-0 px-6 py-3 bg-green-50 text-green-700 rounded-lg text-center">
+                                <div class="text-xs uppercase tracking-wider font-semibold mb-1">Recommendation</div>
+                                <div class="text-xl font-bold">BUY</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Price Chart -->
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">Price History</h3>
+                            <div class="flex space-x-2">
+                                <button class="time-range-button px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200 transition" data-range="1M">1M</button>
+                                <button class="time-range-button px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200 transition" data-range="3M">3M</button>
+                                <button class="time-range-button px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200 transition" data-range="YTD">YTD</button>
+                                <button class="time-range-button px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200 transition" data-range="1Y">1Y</button>
+                                <button class="time-range-button active px-3 py-1 text-sm rounded-md hover:bg-gray-200 transition" data-range="MAX">MAX</button>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <canvas id="priceChart" height="300"></canvas>
+                            <div id="chartTooltip" class="chart-tooltip"></div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Indicators -->
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Technical Indicators</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-600 font-medium">20-day SMA</span>
+                                    <span id="sma20" class="text-gray-900 font-semibold">$168.72</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-500 rounded-full" style="width: 75%"></div>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-500">Price is above SMA (Bullish)</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-600 font-medium">50-day SMA</span>
+                                    <span id="sma50" class="text-gray-900 font-semibold">$165.31</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-500 rounded-full" style="width: 82%"></div>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-500">Price is above SMA (Bullish)</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-600 font-medium">RSI (14)</span>
+                                    <span id="rsi14" class="text-gray-900 font-semibold">63.42</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div id="rsi14Bar" class="h-full bg-yellow-500 rounded-full" style="width: 63.42%"></div>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-500">Approaching overbought (Neutral)</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-600 font-medium">Risk Level</span>
+                                    <span id="riskLevel" class="text-gray-900 font-semibold">Medium</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div id="riskLevelBar" class="h-full bg-yellow-500 rounded-full" style="width: 50%"></div>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-500">Volatility: 1.45%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="space-y-6">
+                    <!-- AI Analysis -->
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-robot text-blue-800 mr-2"></i>
+                            <h3 class="text-lg font-semibold text-gray-800">AI Analysis</h3>
+                        </div>
+                        <div class="text-gray-700 space-y-4">
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-1">Technical Analysis Summary:</h4>
+                                <p>Apple Inc. (AAPL) is showing strong bullish momentum with the price trading above both the 20-day and 50-day SMAs. The RSI at 63.42 indicates growing momentum without being overbought yet.</p>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-1">Trend Analysis:</h4>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><span class="font-medium">Price Trend:</span> <span class="text-green-600">Upward</span></li>
+                                    <li><span class="font-medium">Volume Trend:</span> <span class="text-green-600">Increasing</span></li>
+                                    <li><span class="font-medium">Momentum:</span> <span class="text-green-600">Strong</span></li>
+                                </ul>
+                            </div>
+                            <div class="pt-2 border-t border-gray-100">
+                                <h4 class="font-medium text-gray-900 mb-1">Final Recommendation:</h4>
+                                <p class="font-medium text-green-700">BUY - Apple shows strong technical indicators with upward momentum and increasing volume, suggesting continued price appreciation.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Support & Resistance -->
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Key Levels</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-gray-600 font-medium">Resistance</span>
+                                    <span id="resistance" class="text-gray-900 font-semibold">$178.25</span>
+                                </div>
+                                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-red-500 rounded-full" style="width: 100%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-gray-600 font-medium">Current Price</span>
+                                    <span class="text-gray-900 font-semibold">$173.45</span>
+                                </div>
+                                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-500 rounded-full" style="width: 70%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-gray-600 font-medium">Support</span>
+                                    <span id="support" class="text-gray-900 font-semibold">$167.80</span>
+                                </div>
+                                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-500 rounded-full" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Market News -->
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex items-center">
+                                <i class="fas fa-newspaper text-blue-800 mr-2"></i>
+                                <h3 class="text-lg font-semibold text-gray-800">Market News</h3>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
+                                <div class="flex items-start space-x-3">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <i class="fas fa-newspaper text-gray-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900 truncate">Apple Reports Record Q2 Earnings, Boosts Dividend and Buyback</p>
+                                        <p class="text-xs text-gray-500 mt-1">Bloomberg • May 5, 2025</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
+                                <div class="flex items-start space-x-3">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <i class="fas fa-newspaper text-gray-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900 truncate">Apple's AI Strategy Impresses Analysts, Stock Hits New High</p>
+                                        <p class="text-xs text-gray-500 mt-1">Reuters • May 3, 2025</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
+                                <div class="flex items-start space-x-3">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <i class="fas fa-newspaper text-gray-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900 truncate">Supply Chain Improvements Boost Apple's Production Capacity</p>
+                                        <p class="text-xs text-gray-500 mt-1">CNBC • May 1, 2025</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-50 border-t border-gray-200 py-8 mt-12">
+            <div class="container mx-auto px-4">
+                <div class="text-center text-gray-500 text-sm">
+                    <p>This dashboard is for informational purposes only and does not constitute investment advice.</p>
+                    <p class="mt-2">Data as of May 6, 2025. All analysis is based on historical performance and technical indicators.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize chart
+            createPriceChart();
+
+            // Add event listeners to time range buttons
+            document.querySelectorAll('.time-range-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    document.querySelectorAll('.time-range-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+
+                    // Add active class to clicked button
+                    this.classList.add('active');
+
+                    // Update chart based on selected time range
+                    updateChartTimeRange(this.dataset.range);
+                });
+            });
+        });
+
+        function createPriceChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            const chartTooltip = document.getElementById('chartTooltip');
+
+            // Historical price data for AAPL (realistic but simulated)
+            const historicalData = generateHistoricalData();
+
+            window.priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'AAPL Price',
+                        data: historicalData,
+                        borderColor: '#0369a1',
+                        backgroundColor: 'rgba(3, 105, 161, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: false,
+                            external: function(context) {
+                                // Tooltip Element
+                                const tooltipEl = chartTooltip;
+
+                                // Hide if no tooltip
+                                if (context.tooltip.opacity === 0) {
+                                    tooltipEl.style.display = 'none';
+                                    return;
+                                }
+
+                                // Set Text
+                                if (context.tooltip.body) {
+                                    const dataPoint = context.tooltip.dataPoints[0];
+                                    const date = new Date(dataPoint.parsed.x).toLocaleDateString();
+                                    const value = dataPoint.parsed.y.toFixed(2);
+
+                                    tooltipEl.innerHTML = `
+                                        <div class="font-semibold">${date}</div>
+                                        <div>$${value}</div>
+                                    `;
+                                }
+
+                                // Display tooltip
+                                tooltipEl.style.display = 'block';
+
+                                // Position tooltip
+                                const position = context.chart.canvas.getBoundingClientRect();
+                                tooltipEl.style.left = position.left + context.tooltip.caretX + 'px';
+                                tooltipEl.style.top = position.top + context.tooltip.caretY + 'px';
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month'
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 6
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            grid: {
+                                drawBorder: false
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        function updateChartTimeRange(range) {
+            const chart = window.priceChart;
+            const now = new Date();
+            let startDate;
+
+            switch(range) {
+                case '1M':
+                    startDate = new Date(now);
+                    startDate.setMonth(now.getMonth() - 1);
+                    chart.options.scales.x.time.unit = 'day';
+                    break;
+                case '3M':
+                    startDate = new Date(now);
+                    startDate.setMonth(now.getMonth() - 3);
+                    chart.options.scales.x.time.unit = 'day';
+                    break;
+                case 'YTD':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    chart.options.scales.x.time.unit = 'month';
+                    break;
+                case '1Y':
+                    startDate = new Date(now);
+                    startDate.setFullYear(now.getFullYear() - 1);
+                    chart.options.scales.x.time.unit = 'month';
+                    break;
+                case 'MAX':
+                    startDate = new Date(now);
+                    startDate.setFullYear(now.getFullYear() - 5);
+                    chart.options.scales.x.time.unit = 'quarter';
+                    break;
+            }
+
+            chart.options.scales.x.min = startDate.getTime();
+            chart.update();
+        }
+
+        function generateHistoricalData() {
+            // Generate 5 years of realistic AAPL price data
+            const data = [];
+            const endDate = new Date();
+            const startDate = new Date(endDate);
+            startDate.setFullYear(endDate.getFullYear() - 5);
+
+            // Starting price around $90 (5 years ago)
+            let price = 90;
+
+            // Generate daily data points
+            for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+                // Skip weekends
+                if (date.getDay() === 0 || date.getDay() === 6) continue;
+
+                // Add some randomness to price movement
+                const volatility = price * 0.01; // 1% daily volatility
+                const change = (Math.random() - 0.48) * volatility; // Slight upward bias
+
+                // Add some trends and patterns
+                // Bull run in 2020-2021
+                if (date > new Date('2020-03-15') && date < new Date('2021-01-01')) {
+                    price += change * 1.5;
+                }
+                // Correction in early 2022
+                else if (date > new Date('2022-01-01') && date < new Date('2022-06-01')) {
+                    price += change * 0.7;
+                }
+                // Recovery in 2023
+                else if (date > new Date('2023-01-01') && date < new Date('2023-12-31')) {
+                    price += change * 1.2;
+                }
+                // Recent strong performance
+                else if (date > new Date('2024-01-01')) {
+                    price += change * 1.3;
+                }
+                else {
+                    price += change;
+                }
+
+                // Ensure price doesn't go below a reasonable floor
+                price = Math.max(price, 50);
+
+                data.push({
+                    x: date.getTime(),
+                    y: price
+                });
+            }
+
+            return data;
+        }
+
+        // Chatbot functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatButton = document.getElementById('chatButton');
+            const chatWindow = document.getElementById('chatWindow');
+            const closeChat = document.getElementById('closeChat');
+            const chatForm = document.getElementById('chatForm');
+            const chatInput = document.getElementById('chatInput');
+            const chatMessages = document.getElementById('chatMessages');
+
+            // Toggle chat window
+            chatButton.addEventListener('click', function() {
+                if (chatWindow.classList.contains('hidden')) {
+                    // Open chat window
+                    chatWindow.classList.remove('hidden');
+                    chatWindow.classList.add('open');
+                    chatInput.focus();
+                } else {
+                    // Close chat window
+                    chatWindow.classList.add('closing');
+                    setTimeout(() => {
+                        chatWindow.classList.add('hidden');
+                        chatWindow.classList.remove('open', 'closing');
+                    }, 300);
+                }
+            });
+
+            // Close chat window
+            closeChat.addEventListener('click', function() {
+                chatWindow.classList.add('closing');
+                setTimeout(() => {
+                    chatWindow.classList.add('hidden');
+                    chatWindow.classList.remove('open', 'closing');
+                }, 300);
+            });
+
+            // Handle chat form submission
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const message = chatInput.value.trim();
+                if (!message) return;
+
+                // Add user message to chat
+                addMessage('user', message);
+
+                // Clear input
+                chatInput.value = '';
+
+                // Show typing indicator
+                showTypingIndicator();
+
+                // Send message to API
+                fetchStockAnalysis(message);
+            });
+
+            // Add message to chat
+            function addMessage(sender, text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `chat-message ${sender} mb-4`;
+
+                if (sender === 'user') {
+                    messageDiv.innerHTML = `
+                        <div class="flex items-start flex-row-reverse">
+                            <div class="flex-shrink-0 ml-3">
+                                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500">
+                                    <i class="fas fa-user text-sm"></i>
+                                </div>
+                            </div>
+                            <div class="bg-blue-500 text-white p-3 rounded-lg shadow-sm max-w-xs ml-auto">
+                                <p class="text-sm">${text}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messageDiv.innerHTML = `
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mr-3">
+                                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                    <i class="fas fa-robot text-sm"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg shadow-sm max-w-xs">
+                                <p class="text-sm chat-content"></p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                chatMessages.appendChild(messageDiv);
+
+                // Set the text content or HTML
+                if (sender === 'bot') {
+                    const contentElement = messageDiv.querySelector('.chat-content');
+                    if (contentElement) {
+                        contentElement.innerHTML = text;
+                    }
+                }
+
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            // Show typing indicator
+            function showTypingIndicator() {
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'chat-message bot typing-indicator mb-4';
+                typingDiv.id = 'typingIndicator';
+
+                typingDiv.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 mr-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                <i class="fas fa-robot text-sm"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm">
+                            <div class="flex space-x-1">
+                                <div class="bg-gray-300 rounded-full w-2 h-2 animate-bounce" style="animation-delay: 0s;"></div>
+                                <div class="bg-gray-300 rounded-full w-2 h-2 animate-bounce" style="animation-delay: 0.2s;"></div>
+                                <div class="bg-gray-300 rounded-full w-2 h-2 animate-bounce" style="animation-delay: 0.4s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                chatMessages.appendChild(typingDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            // Remove typing indicator
+            function removeTypingIndicator() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) {
+                    typingIndicator.remove();
+                }
+            }
+
+            // Fetch stock analysis from API
+            async function fetchStockAnalysis(query) {
+                try {
+                    const response = await fetch('http://localhost:5000/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ query }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const data = await response.json();
+
+                    // Remove typing indicator
+                    removeTypingIndicator();
+
+                    if (data.error) {
+                        addMessage('bot', `Sorry, I encountered an error: ${data.error}`);
+                        return;
+                    }
+
+                    // Format the response
+                    const formattedResponse = formatAnalysisResponse(data);
+
+                    // Add bot response to chat
+                    addMessage('bot', formattedResponse);
+
+                    // Update the dashboard with the new stock data
+                    updateDashboardWithStockData(data);
+
+                    // Scroll to top to show the updated dashboard
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    removeTypingIndicator();
+                    addMessage('bot', 'Sorry, I encountered an error while analyzing the stock. Please try again later.');
+                }
+            }
+
+            // Update the dashboard with new stock data
+            function updateDashboardWithStockData(data) {
+                // Update stock title and ticker
+                document.querySelector('h2.text-2xl.font-bold.text-gray-800').textContent = data.ticker;
+                document.querySelector('.bg-gray-100.text-gray-800.px-3.py-1.rounded-full.text-sm.font-medium').textContent = data.ticker;
+
+                // Update company name if available, otherwise use ticker
+                const companyName = getCompanyName(data.ticker);
+                document.querySelector('h2.text-2xl.font-bold.text-gray-800').textContent = companyName;
+
+                // Update company logo
+                const logoImg = document.querySelector('.flex.items-center.mb-2 img');
+                if (logoImg) {
+                    logoImg.src = `https://logo.clearbit.com/${getCompanyDomain(data.ticker)}`;
+                    logoImg.alt = `${companyName} Logo`;
+
+                    // Add error handling for logo
+                    logoImg.onerror = function() {
+                        // Fallback to a generic stock icon if logo can't be loaded
+                        this.src = 'https://cdn-icons-png.flaticon.com/512/5556/5556468.png';
+                    };
+                }
+
+                // Update current price
+                const priceElements = document.querySelectorAll('.text-3xl.font-bold.text-gray-900');
+                priceElements.forEach(el => {
+                    el.textContent = `$${data.currentPrice.toFixed(2)}`;
+                });
+
+                // Update price change (simulated)
+                const changePercent = (Math.random() * 3).toFixed(2);
+                const isPositive = data.technicalAnalysis.priceTrend === 'Upward';
+                const priceChangeElement = document.querySelector('.price-change');
+
+                if (isPositive) {
+                    const changeAmount = (data.currentPrice * changePercent / 100).toFixed(2);
+                    priceChangeElement.innerHTML = `<i class="fas fa-caret-up mr-1"></i>${changeAmount} (${changePercent}%)`;
+                    priceChangeElement.className = 'price-change positive';
+                } else {
+                    const changeAmount = (data.currentPrice * changePercent / 100).toFixed(2);
+                    priceChangeElement.innerHTML = `<i class="fas fa-caret-down mr-1"></i>${changeAmount} (${changePercent}%)`;
+                    priceChangeElement.className = 'price-change negative';
+                }
+
+                // Update recommendation
+                const recDiv = document.querySelector('.px-6.py-3.rounded-lg.text-center');
+                const recText = recDiv.querySelector('div:last-child');
+                recText.textContent = data.recommendation;
+
+                // Set recommendation color
+                recDiv.className = 'px-6 py-3 rounded-lg text-center';
+                if (data.recommendation === 'BUY') {
+                    recDiv.classList.add('bg-green-50', 'text-green-700');
+                } else if (data.recommendation === 'SELL') {
+                    recDiv.classList.add('bg-red-50', 'text-red-700');
+                } else {
+                    recDiv.classList.add('bg-yellow-50', 'text-yellow-700');
+                }
+
+                // Update technical indicators
+                document.getElementById('sma20').textContent = data.technicalAnalysis.sma20 ?
+                    `$${data.technicalAnalysis.sma20.toFixed(2)}` : 'N/A';
+                document.getElementById('sma50').textContent = data.technicalAnalysis.sma50 ?
+                    `$${data.technicalAnalysis.sma50.toFixed(2)}` : 'N/A';
+                document.getElementById('rsi14').textContent = data.technicalAnalysis.rsi14 ?
+                    data.technicalAnalysis.rsi14.toFixed(2) : 'N/A';
+                document.getElementById('riskLevel').textContent = data.technicalAnalysis.riskLevel;
+
+                // Update support and resistance
+                document.getElementById('support').textContent = `$${data.technicalAnalysis.support.toFixed(2)}`;
+                document.getElementById('resistance').textContent = `$${data.technicalAnalysis.resistance.toFixed(2)}`;
+
+                // Update RSI bar
+                if (data.technicalAnalysis.rsi14) {
+                    document.getElementById('rsi14Bar').style.width = `${Math.min(data.technicalAnalysis.rsi14, 100)}%`;
+
+                    // Change color based on RSI value
+                    const rsiBar = document.getElementById('rsi14Bar');
+                    if (data.technicalAnalysis.rsi14 > 70) {
+                        rsiBar.className = 'h-full bg-red-500 rounded-full';
+                    } else if (data.technicalAnalysis.rsi14 < 30) {
+                        rsiBar.className = 'h-full bg-green-500 rounded-full';
+                    } else {
+                        rsiBar.className = 'h-full bg-yellow-500 rounded-full';
+                    }
+                }
+
+                // Update risk level bar
+                const riskBar = document.getElementById('riskLevelBar');
+                if (data.technicalAnalysis.riskLevel === 'High') {
+                    riskBar.style.width = '80%';
+                    riskBar.className = 'h-full bg-red-500 rounded-full';
+                } else if (data.technicalAnalysis.riskLevel === 'Medium') {
+                    riskBar.style.width = '50%';
+                    riskBar.className = 'h-full bg-yellow-500 rounded-full';
+                } else {
+                    riskBar.style.width = '20%';
+                    riskBar.className = 'h-full bg-green-500 rounded-full';
+                }
+
+                // Update AI analysis
+                const aiAnalysisElement = document.querySelector('.text-gray-700.space-y-4');
+
+                // Update trend analysis in AI section
+                const trendItems = aiAnalysisElement.querySelectorAll('ul.list-disc li');
+                if (trendItems.length >= 3) {
+                    // Price trend
+                    const priceTrendColor = data.technicalAnalysis.priceTrend === 'Upward' ? 'text-green-600' : 'text-red-600';
+                    trendItems[0].innerHTML = `<span class="font-medium">Price Trend:</span> <span class="${priceTrendColor}">${data.technicalAnalysis.priceTrend}</span>`;
+
+                    // Volume trend
+                    const volumeTrendColor = data.technicalAnalysis.volumeTrend === 'Increasing' ? 'text-green-600' : 'text-red-600';
+                    trendItems[1].innerHTML = `<span class="font-medium">Volume Trend:</span> <span class="${volumeTrendColor}">${data.technicalAnalysis.volumeTrend}</span>`;
+
+                    // Momentum
+                    const momentumColor = data.technicalAnalysis.momentum === 'Strong' ? 'text-green-600' : 'text-yellow-600';
+                    trendItems[2].innerHTML = `<span class="font-medium">Momentum:</span> <span class="${momentumColor}">${data.technicalAnalysis.momentum}</span>`;
+                }
+
+                // Update final recommendation in AI section
+                const finalRecElement = aiAnalysisElement.querySelector('.pt-2.border-t.border-gray-100 p');
+                if (finalRecElement) {
+                    const recColor = data.recommendation === 'BUY' ? 'text-green-700' :
+                                    data.recommendation === 'SELL' ? 'text-red-700' : 'text-yellow-700';
+                    finalRecElement.className = `font-medium ${recColor}`;
+
+                    // Create a clean, consistent recommendation message
+                    const cleanRecommendation = `${data.recommendation} - ${data.aiAnalysis.split('Recommendation:')[0].trim()}`;
+                    finalRecElement.textContent = cleanRecommendation;
+                }
+
+                // Update news (if available)
+                if (data.news && data.news.length > 0) {
+                    const newsListElement = document.querySelector('.divide-y.divide-gray-100');
+                    newsListElement.innerHTML = '';
+
+                    data.news.slice(0, 3).forEach(item => {
+                        const newsItem = document.createElement('div');
+                        newsItem.className = 'p-4 hover:bg-gray-50 transition cursor-pointer';
+
+                        newsItem.innerHTML = `
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <i class="fas fa-newspaper text-gray-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate">${item.title || 'News headline'}</p>
+                                    <p class="text-xs text-gray-500 mt-1">${item.source || 'News source'} • ${new Date().toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                        `;
+
+                        newsListElement.appendChild(newsItem);
+                    });
+                }
+
+                // Update chart with new data
+                updateChartForNewStock(data);
+            }
+
+            // Update chart for new stock
+            function updateChartForNewStock(data) {
+                // Get the current chart
+                const chart = window.priceChart;
+
+                if (chart) {
+                    // Generate new data based on the current price
+                    const newData = generateDataForStock(data.ticker, data.currentPrice);
+
+                    // Update chart data
+                    chart.data.datasets[0].data = newData;
+                    chart.data.datasets[0].label = `${data.ticker} Price`;
+
+                    // Update chart
+                    chart.update();
+                }
+            }
+
+            // Generate data for a specific stock
+            function generateDataForStock(ticker, currentPrice) {
+                // Generate 5 years of realistic price data
+                const data = [];
+                const endDate = new Date();
+                const startDate = new Date(endDate);
+                startDate.setFullYear(endDate.getFullYear() - 5);
+
+                // Starting price around 40% of current price (5 years ago)
+                let price = currentPrice * 0.4;
+
+                // Generate daily data points
+                for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+                    // Skip weekends
+                    if (date.getDay() === 0 || date.getDay() === 6) continue;
+
+                    // Add some randomness to price movement
+                    const volatility = price * 0.01; // 1% daily volatility
+                    const change = (Math.random() - 0.48) * volatility; // Slight upward bias
+
+                    // Add some trends and patterns
+                    // Bull run in 2020-2021
+                    if (date > new Date('2020-03-15') && date < new Date('2021-01-01')) {
+                        price += change * 1.5;
+                    }
+                    // Correction in early 2022
+                    else if (date > new Date('2022-01-01') && date < new Date('2022-06-01')) {
+                        price += change * 0.7;
+                    }
+                    // Recovery in 2023
+                    else if (date > new Date('2023-01-01') && date < new Date('2023-12-31')) {
+                        price += change * 1.2;
+                    }
+                    // Recent strong performance
+                    else if (date > new Date('2024-01-01')) {
+                        price += change * 1.3;
+                    }
+                    else {
+                        price += change;
+                    }
+
+                    // Ensure price doesn't go below a reasonable floor
+                    price = Math.max(price, currentPrice * 0.2);
+
+                    data.push({
+                        x: date.getTime(),
+                        y: price
+                    });
+                }
+
+                // Make sure the last price matches the current price
+                if (data.length > 0) {
+                    data[data.length - 1].y = currentPrice;
+                }
+
+                return data;
+            }
+
+            // Get company name from ticker
+            function getCompanyName(ticker) {
+                const companyMap = {
+                    'AAPL': 'Apple Inc.',
+                    'MSFT': 'Microsoft Corporation',
+                    'AMZN': 'Amazon.com, Inc.',
+                    'GOOGL': 'Alphabet Inc.',
+                    'GOOG': 'Alphabet Inc.',
+                    'META': 'Meta Platforms, Inc.',
+                    'TSLA': 'Tesla, Inc.',
+                    'NVDA': 'NVIDIA Corporation',
+                    'NFLX': 'Netflix, Inc.',
+                    'PYPL': 'PayPal Holdings, Inc.',
+                    'ADBE': 'Adobe Inc.',
+                    'INTC': 'Intel Corporation',
+                    'CSCO': 'Cisco Systems, Inc.',
+                    'CMCSA': 'Comcast Corporation',
+                    'PEP': 'PepsiCo, Inc.',
+                    'AVGO': 'Broadcom Inc.',
+                    'TXN': 'Texas Instruments Incorporated',
+                    'QCOM': 'QUALCOMM Incorporated',
+                    'TMUS': 'T-Mobile US, Inc.',
+                    'AMGN': 'Amgen Inc.',
+                    'SBUX': 'Starbucks Corporation',
+                    'INTU': 'Intuit Inc.',
+                    'AMD': 'Advanced Micro Devices, Inc.'
+                };
+
+                return companyMap[ticker] || `${ticker} Stock`;
+            }
+
+            // Get company domain for logo
+            function getCompanyDomain(ticker) {
+                const domainMap = {
+                    'AAPL': 'apple.com',
+                    'MSFT': 'microsoft.com',
+                    'AMZN': 'amazon.com',
+                    'GOOGL': 'google.com',
+                    'GOOG': 'google.com',
+                    'META': 'meta.com',
+                    'TSLA': 'tesla.com',
+                    'NVDA': 'nvidia.com',
+                    'NFLX': 'netflix.com',
+                    'PYPL': 'paypal.com',
+                    'ADBE': 'adobe.com',
+                    'INTC': 'intel.com',
+                    'CSCO': 'cisco.com',
+                    'CMCSA': 'comcast.com',
+                    'PEP': 'pepsico.com',
+                    'AVGO': 'broadcom.com',
+                    'TXN': 'ti.com',
+                    'QCOM': 'qualcomm.com',
+                    'TMUS': 't-mobile.com',
+                    'AMGN': 'amgen.com',
+                    'SBUX': 'starbucks.com',
+                    'INTU': 'intuit.com',
+                    'AMD': 'amd.com',
+                    'WMT': 'walmart.com',
+                    'TGT': 'target.com',
+                    'COST': 'costco.com',
+                    'HD': 'homedepot.com',
+                    'LOW': 'lowes.com',
+                    'DIS': 'disney.com',
+                    'NDAQ': 'nasdaq.com',
+                    'IBM': 'ibm.com',
+                    'ORCL': 'oracle.com',
+                    'CRM': 'salesforce.com',
+                    'V': 'visa.com',
+                    'MA': 'mastercard.com',
+                    'JPM': 'jpmorganchase.com',
+                    'BAC': 'bankofamerica.com',
+                    'WFC': 'wellsfargo.com',
+                    'C': 'citigroup.com',
+                    'GS': 'goldmansachs.com',
+                    'MS': 'morganstanley.com',
+                    'UBER': 'uber.com',
+                    'LYFT': 'lyft.com',
+                    'ABNB': 'airbnb.com',
+                    'DASH': 'doordash.com',
+                    'ZM': 'zoom.us',
+                    'SHOP': 'shopify.com',
+                    'SQ': 'squareup.com',
+                    'PINS': 'pinterest.com',
+                    'SNAP': 'snap.com',
+                    'TWTR': 'twitter.com',
+                    'SPOT': 'spotify.com',
+                    'ROKU': 'roku.com',
+                    'COIN': 'coinbase.com',
+                    'GME': 'gamestop.com',
+                    'AMC': 'amctheatres.com',
+                    'BB': 'blackberry.com',
+                    'NOK': 'nokia.com',
+                    'F': 'ford.com',
+                    'GM': 'gm.com',
+                    'TSCO': 'tractorsupply.com',
+                    'KO': 'coca-cola.com',
+                    'PG': 'pg.com',
+                    'JNJ': 'jnj.com',
+                    'MRK': 'merck.com',
+                    'PFE': 'pfizer.com',
+                    'MRNA': 'modernatx.com',
+                    'BNTX': 'biontech.de',
+                    'CVS': 'cvs.com',
+                    'WBA': 'walgreens.com',
+                    'UNH': 'unitedhealthgroup.com',
+                    'AMGN': 'amgen.com',
+                    'BIIB': 'biogen.com',
+                    'GILD': 'gilead.com',
+                    'REGN': 'regeneron.com',
+                    'VRTX': 'vrtx.com',
+                    'ILMN': 'illumina.com',
+                    'IDXX': 'idexx.com',
+                    'ZTS': 'zoetis.com',
+                    'DHR': 'danaher.com',
+                    'TMO': 'thermofisher.com',
+                    'ABT': 'abbott.com',
+                    'MDT': 'medtronic.com',
+                    'SYK': 'stryker.com',
+                    'ISRG': 'intuitive.com',
+                    'EW': 'edwards.com',
+                    'BSX': 'bostonscientific.com',
+                    'ZBH': 'zimmerbiomet.com',
+                    'BAX': 'baxter.com',
+                    'BDX': 'bd.com',
+                    'COO': 'coopercos.com',
+                    'ALGN': 'aligntech.com',
+                    'DXCM': 'dexcom.com',
+                    'HOLX': 'hologic.com',
+                    'XRAY': 'dentsplysirona.com',
+                    'DVA': 'davita.com',
+                    'UHS': 'uhsinc.com',
+                    'HCA': 'hcahealthcare.com',
+                    'CNC': 'centene.com',
+                    'ANTM': 'antheminc.com',
+                    'CI': 'cigna.com',
+                    'HUM': 'humana.com',
+                    'MOH': 'molinahealthcare.com',
+                    'CERN': 'cerner.com',
+                    'CPRT': 'copart.com',
+                    'FAST': 'fastenal.com',
+                    'GWW': 'grainger.com',
+                    'MSI': 'motorolasolutions.com',
+                    'TEL': 'te.com',
+                    'GLW': 'corning.com',
+                    'APH': 'amphenol.com',
+                    'KEYS': 'keysight.com',
+                    'FTV': 'fortive.com',
+                    'AME': 'ametek.com',
+                    'ROK': 'rockwellautomation.com',
+                    'EMR': 'emerson.com',
+                    'ETN': 'eaton.com',
+                    'PH': 'parker.com',
+                    'ITW': 'itw.com',
+                    'SWK': 'stanleyblackanddecker.com',
+                    'IR': 'irco.com',
+                    'DOV': 'dovercorporation.com',
+                    'XYL': 'xylem.com',
+                    'PNR': 'pentair.com',
+                    'WM': 'wm.com',
+                    'RSG': 'republicservices.com',
+                    'VRSK': 'verisk.com',
+                    'CTAS': 'cintas.com',
+                    'JBHT': 'jbhunt.com',
+                    'EXPD': 'expeditors.com',
+                    'CHRW': 'chrobinson.com',
+                    'LSTR': 'landstar.com',
+                    'KSU': 'kcsouthern.com',
+                    'NSC': 'nscorp.com',
+                    'CSX': 'csx.com',
+                    'UNP': 'up.com',
+                    'LUV': 'southwest.com',
+                    'DAL': 'delta.com',
+                    'UAL': 'united.com',
+                    'AAL': 'aa.com',
+                    'JBLU': 'jetblue.com',
+                    'ALK': 'alaskaair.com',
+                    'SAVE': 'spirit.com',
+                    'HA': 'hawaiianairlines.com',
+                    'ULCC': 'flyfrontier.com',
+                    'SKYW': 'skywest.com',
+                    'MESA': 'mesa-air.com',
+                    'ALGT': 'allegiantair.com',
+                    'ATSG': 'atsginc.com',
+                    'AAWW': 'atlasairworldwide.com',
+                    'UPS': 'ups.com',
+                    'FDX': 'fedex.com',
+                    'ODFL': 'odfl.com',
+                    'XPO': 'xpo.com',
+                    'SAIA': 'saia.com',
+                    'ARCB': 'arcb.com',
+                    'YELL': 'yellcorp.com',
+                    'KNX': 'knighttrans.com',
+                    'WERN': 'werner.com',
+                    'MRTN': 'marten.com',
+                    'HTLD': 'heartlandexpress.com',
+                    'SNDR': 'schneider.com',
+                    'USX': 'usxpress.com',
+                    'CVLG': 'covenantlogistics.com',
+                    'PAM': 'pampacargo.com',
+                    'PTSI': 'pticargo.com',
+                    'USAK': 'usa-truck.com',
+                    'DSKE': 'daseke.com',
+                    'MRCY': 'mrcy.com',
+                    'AJRD': 'rocket.com',
+                    'SPCE': 'virgingalactic.com',
+                    'RKLB': 'rocketlabusa.com',
+                    'ASTR': 'astra.com',
+                    'BKSY': 'blacksky.com',
+                    'IRDM': 'iridium.com',
+                    'MAXR': 'maxar.com',
+                    'GSAT': 'globalstar.com',
+                    'LORL': 'loral.com',
+                    'VSAT': 'viasat.com',
+                    'I': 'intelsat.com',
+                    'DISH': 'dish.com',
+                    'SATS': 'echostar.com',
+                    'ORBC': 'orbcomm.com',
+                    'TRMB': 'trimble.com',
+                    'GRMN': 'garmin.com',
+                    'AMBA': 'ambarella.com',
+                    'SWIR': 'sierrawireless.com',
+                    'CAMP': 'calamp.com',
+                    'DGII': 'digi.com',
+                    'PCTI': 'pctel.com',
+                    'WATT': 'energous.com',
+                    'RESN': 'resonant.com',
+                    'CEVA': 'ceva-dsp.com',
+                    'MTSI': 'macom.com',
+                    'SMTC': 'semtech.com',
+                    'SWKS': 'skyworksinc.com',
+                    'QRVO': 'qorvo.com',
+                    'AVGO': 'broadcom.com',
+                    'MRVL': 'marvell.com',
+                    'XLNX': 'xilinx.com',
+                    'MCHP': 'microchip.com',
+                    'ADI': 'analog.com',
+                    'TXN': 'ti.com',
+                    'NXPI': 'nxp.com',
+                    'ON': 'onsemi.com',
+                    'MPWR': 'monolithicpower.com',
+                    'POWI': 'power.com',
+                    'DIOD': 'diodes.com',
+                    'VSH': 'vishay.com',
+                    'CY': 'cypress.com',
+                    'MXIM': 'maximintegrated.com',
+                    'LSCC': 'latticesemi.com',
+                    'IPGP': 'ipgphotonics.com',
+                    'IIVI': 'ii-vi.com',
+                    'LITE': 'lumentum.com',
+                    'FNSR': 'finisar.com',
+                    'OCLR': 'oclaro.com',
+                    'NPTN': 'neophotonics.com',
+                    'ACIA': 'acacia-inc.com',
+                    'INFN': 'infinera.com',
+                    'CIEN': 'ciena.com',
+                    'VIAV': 'viavisolutions.com',
+                    'EXTR': 'extremenetworks.com',
+                    'FFIV': 'f5.com',
+                    'ANET': 'arista.com',
+                    'JNPR': 'juniper.net',
+                    'CMBM': 'cambiumnetworks.com',
+                    'UI': 'ubnt.com',
+                    'COMM': 'commscope.com',
+                    'CALX': 'calix.com',
+                    'ADTN': 'adtran.com',
+                    'HLIT': 'harmonicinc.com',
+                    'CASA': 'casa-systems.com',
+                    'RBBN': 'ribboncommunications.com',
+                    'AUDC': 'audiocodes.com',
+                    'SONS': 'sonus.net',
+                    'SSTI': 'shotspotter.com',
+                    'ATEN': 'a10networks.com',
+                    'RDWR': 'radware.com',
+                    'FSLY': 'fastly.com',
+                    'NET': 'cloudflare.com',
+                    'AKAM': 'akamai.com',
+                    'LLNW': 'limelight.com',
+                    'CDNS': 'cadence.com',
+                    'SNPS': 'synopsys.com',
+                    'ANSS': 'ansys.com',
+                    'ADSK': 'autodesk.com',
+                    'PTC': 'ptc.com',
+                    'DDD': '3dsystems.com',
+                    'SSYS': 'stratasys.com',
+                    'XONE': 'exone.com',
+                    'MTLS': 'materialise.com',
+                    'VJET': 'voxeljet.com',
+                    'PRLB': 'protolabs.com',
+                    'FARO': 'faro.com',
+                    'TRMB': 'trimble.com',
+                    'ESLT': 'elbitsystems.com',
+                    'LHX': 'l3harris.com',
+                    'LMT': 'lockheedmartin.com',
+                    'NOC': 'northropgrumman.com',
+                    'GD': 'gd.com',
+                    'RTX': 'rtx.com',
+                    'BA': 'boeing.com',
+                    'SPR': 'spiritaero.com',
+                    'TDG': 'transdigm.com',
+                    'HXL': 'hexcel.com',
+                    'AJRD': 'rocket.com',
+                    'SPCE': 'virgingalactic.com',
+                    'RKLB': 'rocketlabusa.com',
+                    'ASTR': 'astra.com',
+                    'BKSY': 'blacksky.com',
+                    'IRDM': 'iridium.com',
+                    'MAXR': 'maxar.com',
+                    'GSAT': 'globalstar.com',
+                    'LORL': 'loral.com',
+                    'VSAT': 'viasat.com',
+                    'I': 'intelsat.com',
+                    'DISH': 'dish.com',
+                    'SATS': 'echostar.com',
+                    'ORBC': 'orbcomm.com',
+                    'TRMB': 'trimble.com',
+                    'GRMN': 'garmin.com',
+                    'AMBA': 'ambarella.com',
+                    'SWIR': 'sierrawireless.com',
+                    'CAMP': 'calamp.com',
+                    'DGII': 'digi.com',
+                    'PCTI': 'pctel.com',
+                    'WATT': 'energous.com',
+                    'RESN': 'resonant.com',
+                    'CEVA': 'ceva-dsp.com',
+                    'MTSI': 'macom.com',
+                    'SMTC': 'semtech.com',
+                    'SWKS': 'skyworksinc.com',
+                    'QRVO': 'qorvo.com',
+                    'AVGO': 'broadcom.com',
+                    'MRVL': 'marvell.com',
+                    'XLNX': 'xilinx.com',
+                    'MCHP': 'microchip.com',
+                    'ADI': 'analog.com',
+                    'TXN': 'ti.com',
+                    'NXPI': 'nxp.com',
+                    'ON': 'onsemi.com',
+                    'MPWR': 'monolithicpower.com',
+                    'POWI': 'power.com',
+                    'DIOD': 'diodes.com',
+                    'VSH': 'vishay.com',
+                    'CY': 'cypress.com',
+                    'MXIM': 'maximintegrated.com',
+                    'LSCC': 'latticesemi.com',
+                    'IPGP': 'ipgphotonics.com',
+                    'IIVI': 'ii-vi.com',
+                    'LITE': 'lumentum.com',
+                    'FNSR': 'finisar.com',
+                    'OCLR': 'oclaro.com',
+                    'NPTN': 'neophotonics.com',
+                    'ACIA': 'acacia-inc.com',
+                    'INFN': 'infinera.com',
+                    'CIEN': 'ciena.com',
+                    'VIAV': 'viavisolutions.com',
+                    'EXTR': 'extremenetworks.com',
+                    'FFIV': 'f5.com',
+                    'ANET': 'arista.com',
+                    'JNPR': 'juniper.net',
+                    'CMBM': 'cambiumnetworks.com',
+                    'UI': 'ubnt.com',
+                    'COMM': 'commscope.com',
+                    'CALX': 'calix.com',
+                    'ADTN': 'adtran.com',
+                    'HLIT': 'harmonicinc.com',
+                    'CASA': 'casa-systems.com',
+                    'RBBN': 'ribboncommunications.com',
+                    'AUDC': 'audiocodes.com',
+                    'SONS': 'sonus.net',
+                    'SSTI': 'shotspotter.com',
+                    'ATEN': 'a10networks.com',
+                    'RDWR': 'radware.com',
+                    'FSLY': 'fastly.com',
+                    'NET': 'cloudflare.com',
+                    'AKAM': 'akamai.com',
+                    'LLNW': 'limelight.com',
+                    'CDNS': 'cadence.com',
+                    'SNPS': 'synopsys.com',
+                    'ANSS': 'ansys.com',
+                    'ADSK': 'autodesk.com',
+                    'PTC': 'ptc.com',
+                    'DDD': '3dsystems.com',
+                    'SSYS': 'stratasys.com',
+                    'XONE': 'exone.com',
+                    'MTLS': 'materialise.com',
+                    'VJET': 'voxeljet.com',
+                    'PRLB': 'protolabs.com',
+                    'FARO': 'faro.com',
+                    'TRMB': 'trimble.com',
+                    'ESLT': 'elbitsystems.com',
+                    'LHX': 'l3harris.com',
+                    'LMT': 'lockheedmartin.com',
+                    'NOC': 'northropgrumman.com',
+                    'GD': 'gd.com',
+                    'RTX': 'rtx.com',
+                    'BA': 'boeing.com',
+                    'SPR': 'spiritaero.com',
+                    'TDG': 'transdigm.com',
+                    'HXL': 'hexcel.com'
+                };
+
+                // Return the domain if found, otherwise use a default domain
+                return domainMap[ticker] || 'stockanalysis.com';
+            }
+
+            // Format analysis response
+            function formatAnalysisResponse(data) {
+                const ticker = data.ticker;
+                const price = data.currentPrice.toFixed(2);
+                const recommendation = data.recommendation;
+
+                // Get technical indicators
+                const tech = data.technicalAnalysis;
+
+                // Format the response
+                let response = `<strong>${ticker} Analysis:</strong><br>`;
+                response += `Current Price: $${price}<br>`;
+                response += `Recommendation: <strong style="color: ${recommendation === 'BUY' ? 'green' : recommendation === 'SELL' ? 'red' : 'orange'}">${recommendation}</strong><br><br>`;
+
+                response += `<strong>Technical Analysis:</strong><br>`;
+                response += `- Price Trend: ${tech.priceTrend}<br>`;
+                response += `- Volume Trend: ${tech.volumeTrend}<br>`;
+                response += `- RSI (14): ${tech.rsi14 ? tech.rsi14.toFixed(2) : 'N/A'}<br>`;
+                response += `- Risk Level: ${tech.riskLevel}<br><br>`;
+
+                // Clean up AI analysis to avoid duplicate recommendations
+                let aiAnalysis = data.aiAnalysis;
+                if (aiAnalysis.includes('Recommendation:')) {
+                    // Remove the recommendation part from AI analysis to avoid confusion
+                    aiAnalysis = aiAnalysis.split('Recommendation:')[0].trim();
+                }
+
+                response += `<strong>Final Analysis:</strong><br>`;
+                response += aiAnalysis;
+
+                return response;
+            }
+        });
+    </script>
+</body>
+</html>
