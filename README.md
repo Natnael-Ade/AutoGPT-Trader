@@ -1,0 +1,2 @@
+# AutoGPT-Trader
+AutoGPT Trader
